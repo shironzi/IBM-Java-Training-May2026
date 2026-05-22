@@ -5,11 +5,11 @@ public class Main {
 	public static void main(String[] args) {
 		System.out.println(blackjack(1,2));
 		System.out.println(blackjack(21, 22));
-		System.out.println(blackjack(2, 22));
+		System.out.println(blackjack(22, 22));
 		System.out.println(blackjack(2, 10));
 		
 		System.out.println(dayToStrSwitch());
-		System.out.println(dayToStrPattern());
+//		System.out.println(dayToStrPattern());
 		
 		pyramid();
 	}
@@ -23,7 +23,7 @@ public class Main {
 	public static String dayToStrSwitch() {
 		Scanner scanner = new Scanner(System.in);
 				
-		System.out.print("Enter Size of Zigzag: ");
+		System.out.print("Enter Day Number: ");
 		int day = scanner.nextInt();
 				
 		switch(day) {
@@ -49,8 +49,10 @@ public class Main {
 	public static String dayToStrPattern() {
 		Scanner scanner = new Scanner(System.in);
 		
-		System.out.print("Enter Size of Zigzag: ");
+		System.out.print("Enter Day Number: ");
 		int day = scanner.nextInt();
+		
+		scanner.close();
 				
 		return switch(day) {
 			case 1 -> "Monday";
@@ -67,13 +69,12 @@ public class Main {
 	public static void pyramid() {
 		Scanner scanner = new Scanner(System.in);
 		
-		System.out.print("Enter Size of Pyramid: ");
-		int size = scanner.nextInt();
+		int size;
 		
-		while(size < 1 || size > 20){
+		do {
 			System.out.print("Enter Size of Pyramid: ");
 			size = scanner.nextInt();
-		};
+		} while(size < 1 || size > 20);
 		
 		for(int col=1; col<=size; col++) {
 			for(int row=1; row<=col; row++) {
@@ -82,5 +83,6 @@ public class Main {
 			
 			System.out.println();
 		}
+		scanner.close();
 	}
 }
