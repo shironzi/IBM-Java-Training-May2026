@@ -33,17 +33,14 @@ public class LogFileAnalyzer {
 					if(line.indexOf("ERROR") >= 0 && line.charAt(line.indexOf("ERROR") + 5) == ':') {
 						levels.put("ERROR", levels.get("ERROR") + 1);
 						messageStart = line.indexOf("ERROR") + 7;
+						messages.add(line.substring(messageStart));
 					}else if(line.indexOf("WARN") >= 0 && line.charAt(line.indexOf("WARN") + 4) == ':') {
 						levels.put("WARN", levels.get("WARN") + 1);
-						messageStart = line.indexOf("WARN") + 6;
 					}else if(line.indexOf("INFO") >= 0 && line.charAt(line.indexOf("INFO") + 4) == ':') {
 						levels.put("INFO", levels.get("INFO") + 1);
-						messageStart = line.indexOf("INFO") + 6;
 					}else {
 						throw new MalformedLogEntryException(line);
 					}
-					
-					messages.add(line.substring(messageStart));
 					
 					DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 					LocalDateTime timestamp = LocalDateTime.parse(time, formatter);
