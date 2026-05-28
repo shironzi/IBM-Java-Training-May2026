@@ -1,7 +1,6 @@
 package test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.*;
 
@@ -69,6 +68,22 @@ class LogAnalyzerTest {
 
 	    String expectedOutput =
 	            "Skipping malformed line: 2024-05-10 09:04:18 INFO: Shutdown completed successfully"
+	                    + System.lineSeparator()
+	                    + "Analysis complete. Summary written to summary.txt"
+	                    + System.lineSeparator();
+
+	    assertEquals(expectedOutput, outputStream.toString());
+	}
+	
+	@Test
+	void shouldPrintMalformedLineMessageForLevel() {
+		String filename = "server.log";
+	    fileCreator(filename, "[2024-05-10 09:04:18] INFOS: Shutdown completed successfully");
+
+	    LogAnalyzer.main(new String[] {filename});
+
+	    String expectedOutput =
+	            "Skipping malformed line: [2024-05-10 09:04:18] INFOS: Shutdown completed successfully"
 	                    + System.lineSeparator()
 	                    + "Analysis complete. Summary written to summary.txt"
 	                    + System.lineSeparator();
