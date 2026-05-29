@@ -81,7 +81,7 @@ public class LogAnalyzer {
         }
 
         // Write summary
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/ibm/training/summary.txt"))) {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/ibm/training/resources/summary.txt"))) {
             bw.write("Log Summary Report\n");
             bw.write("------------------\n");
             bw.write("Total Entries: " + (levelCount.get("INFO") + levelCount.get("WARN") + levelCount.get("ERROR")) + "\n");

@@ -1,155 +1,197 @@
 package test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import ibm.training.LogAnalyzer;
 
 class LogAnalyzerTest {
-	
+
 	private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     private final PrintStream originalOut = System.out;
 
     @BeforeEach
     public void setUp() {
         // Redirect System.out to a ByteArrayOutputStream
+    	outputStream.reset();
         System.setOut(new PrintStream(outputStream));
     }
     
     @AfterEach
-    public void restoreSystemOut() {
+    void restoreSystemOut() throws IOException {
         // Restore the original System.out after each test
         System.setOut(originalOut);
+        
+        // Deleting the summary if not existing
+        Files.deleteIfExists(Path.of("src/ibm/training/resources/summary.txt"));
     }
     
-    private void fileCreator(String filename, String content) {
-    	try (BufferedWriter bw = new BufferedWriter(new FileWriter(filename))) {
-	        bw.write(content);
-	    } catch (Exception e) {
-	        System.out.println("Error: " + e.getMessage());
-	    }
-    }
-
+    /**
+     * should_ReturnEqual_IfSummaryOutputIsEquivalent
+     * Verifies that the generated summary file content and console output
+     * match the expected values for a valid log file input.
+     */
     @Test
-    void success_ShouldReturnAnalysisComplete() throws IOException {
+    void exec001() throws IOException {	
+		String expectedFile = java.nio.file.Files.readString(Path.of("src/test/resources/exec001/summary.txt"));
+		
+		LogAnalyzer.main(new String[] {"src/test/resources/exec001/server.log"});
+		String expectedOutput = "Analysis complete. Summary written to summary.txt" + System.lineSeparator();
+		
+		String actualFile = Files.readString(Path.of("src/ibm/training/resources/summary.txt"));
+		
+		assertEquals(expectedFile, actualFile);
+		assertEquals(expectedOutput, outputStream.toString());
+    }
+    
+    /**
+     * should_DisplayFileNotFoundMessage_IfLogFileDoesNotExist
+     * Verifies that the application prints an appropriate error message when the specified log file cannot be found.
+     */
+    @Test
+    void exec002() throws IOException {	
+		LogAnalyzer.main(new String[] {"src/test/resources/exec002/server.log"});
+		String expectedOutput = "Log file not found." + System.lineSeparator();
+		
+		assertEquals(expectedOutput, outputStream.toString());
+    }
+    
+    /**
+     * should_SkipMalformedLine_IfTimestampFormatIsInvalid
+     * Verifies that malformed log entries without the expected timestamp format are skipped during analysis.
+     */
+    @Test
+    void exec003() throws IOException {	
+    	String expectedFile = java.nio.file.Files.readString(Path.of("src/test/resources/exec003/summary.txt"));
+    	
+		LogAnalyzer.main(new String[] {"src/test/resources/exec003/server.log"});
+		String expectedOutput = "Skipping malformed line: 2024-05-10 09:00:24 ERROR: Failed to connect to external API" 
+				+ System.lineSeparator() 
+				+ "Analysis complete. Summary written to summary.txt"
+				+ System.lineSeparator();
+		
+		String actualFile = Files.readString(Path.of("src/ibm/training/resources/summary.txt"));
+		
+		assertEquals(expectedFile, actualFile);
+		assertEquals(expectedOutput, outputStream.toString());
+    }
+    
+    /*
+     * should_SkipMalformedLine_IfLogLevelIsInvalid
+     * Verifies that log entries containing unsupported log levels are skipped during processing.
+     */
+    @Test
+    void exec004() throws IOException {	
+    	String expectedFile = java.nio.file.Files.readString(Path.of("src/test/resources/exec004/summary.txt"));
+    	
+		LogAnalyzer.main(new String[] {"src/test/resources/exec004/server.log"});
+		String expectedOutput = "Skipping malformed line: [2024-05-10 09:00:24] RUN: Failed to connect to external API" 
+				+ System.lineSeparator() 
+				+ "Analysis complete. Summary written to summary.txt"
+				+ System.lineSeparator();
+		
+		String actualFile = Files.readString(Path.of("src/ibm/training/resources/summary.txt"));
+		
+		assertEquals(expectedFile, actualFile);
+		assertEquals(expectedOutput, outputStream.toString());
+    }
+    
+    /*
+     * should_SkipMalformedLine_IfLogMessageIsMissing
+     * Verifies that log entries missing the message content
+     * after the log level are skipped during analysis.
+     */
+    @Test
+    void exec005() throws IOException {	
+    	String expectedFile = java.nio.file.Files.readString(Path.of("src/test/resources/exec005/summary.txt"));
+    	
+		LogAnalyzer.main(new String[] {"src/test/resources/exec005/server.log"});
+		String expectedOutput = "Skipping malformed line: [2024-05-10 09:00:24] ERROR:" 
+				+ System.lineSeparator() 
+				+ "Analysis complete. Summary written to summary.txt"
+				+ System.lineSeparator();
+		
+		String actualFile = Files.readString(Path.of("src/ibm/training/resources/summary.txt"));
+		
+		assertEquals(expectedFile, actualFile);
+		assertEquals(expectedOutput, outputStream.toString());
+    }
+    
+    /**
+     * should_DisplayErrorReadingFileMessage_IfLogFileIsLocked
+     * Verifies that the application handles IOException
+     * when the input log file is locked during reading.
+     */
+    @Test
+    void exec006() throws IOException {
 
-        // Create sample log file
-        String filename = "server.log";
+        Path logPath = Path.of("src/test/resources/exec006/server.log");
 
-        String logContent =
-                "[2024-05-10 09:00:00] INFO: Server started\n" +
-                "[2024-05-10 09:05:00] WARN: High memory usage\n" +
-                "[2024-05-10 09:10:00] ERROR: Database connection failed";
+        try (
+            RandomAccessFile raf = new RandomAccessFile(logPath.toFile(), "rw");
+            FileChannel channel = raf.getChannel();
+            FileLock lock = channel.lock()
+        ) {
 
-        fileCreator(filename, logContent);
+            LogAnalyzer.main(new String[] {logPath.toString()});
 
-        String[] args = {filename};
+            String expectedOutput =
+                    "Error reading file." + System.lineSeparator();
 
-        // Execute
-        LogAnalyzer.main(args);
+            assertEquals(expectedOutput, outputStream.toString());
+        }
+    }
+    
+    /**
+     * should_DisplayErrorWritingSummaryMessage_IfSummaryFileIsLocked
+     * Verifies that the application handles IOException
+     * when the summary output file is locked during writing.
+     */
+    @Test
+    void exec007() throws IOException {
 
-        // Verify console output
-        String expectedConsole =
-                "Analysis complete. Summary written to summary.txt"
-                        + System.lineSeparator();
+        Path summaryPath =
+                Path.of("src/ibm/training/resources/summary.txt");
 
-        assertEquals(expectedConsole, outputStream.toString());
+        Files.createDirectories(summaryPath.getParent());
 
-        // Verify summary file content
-        File summaryFile = new File("src/ibm/training/summary.txt");
-
-        Assertions.assertTrue(summaryFile.exists());
-
-        BufferedReader br = new BufferedReader(new FileReader(summaryFile));
-
-        StringBuilder actualContent = new StringBuilder();
-        String line;
-
-        while ((line = br.readLine()) != null) {
-            actualContent.append(line)
-                         .append(System.lineSeparator());
+        if (!Files.exists(summaryPath)) {
+            Files.createFile(summaryPath);
         }
 
-        br.close();
+        try (
+            RandomAccessFile raf =
+                    new RandomAccessFile(summaryPath.toFile(), "rw");
 
-        String expectedSummary =
-                "Log Summary Report" + System.lineSeparator() +
-                "------------------" + System.lineSeparator() +
-                "Total Entries: 3" + System.lineSeparator() +
-                "INFO: 1" + System.lineSeparator() +
-                "WARN: 1" + System.lineSeparator() +
-                "ERROR: 1" + System.lineSeparator() +
-                System.lineSeparator() +
-                "Error Messages:" + System.lineSeparator() +
-                "- Database connection failed" + System.lineSeparator() +
-                System.lineSeparator() +
-                "Earliest Timestamp: 2024-05-10T09:00" + System.lineSeparator() +
-                "Latest Timestamp: 2024-05-10T09:10" + System.lineSeparator();
+            FileChannel channel = raf.getChannel();
 
-        assertEquals(expectedSummary, actualContent.toString());
+            FileLock lock = channel.lock()
+        ) {
+
+            LogAnalyzer.main(
+                new String[] {"src/test/resources/exec007/server.log"}
+            );
+
+            String expectedOutput =
+                    "Error writing summary file."
+                    + System.lineSeparator()
+                    + "Analysis complete. Summary written to summary.txt"
+                    + System.lineSeparator();
+
+            assertEquals(expectedOutput, outputStream.toString());
+        }
     }
-	
-	@Test
-	void fileNotFoundError() {
-	    String[] args = {"server123.log"};
 
-	    LogAnalyzer.main(args);
-
-	    String expectedOutput =
-	            "Log file not found." + System.lineSeparator();
-
-	    assertEquals(expectedOutput, outputStream.toString());
-	}
-	
-	@Test
-	void shouldPrintMalformedLineMessage() {
-		String filename = "server.log";
-	    fileCreator(filename, "2024-05-10 09:04:18 INFO: Shutdown completed successfully");
-
-	    LogAnalyzer.main(new String[] {filename});
-
-	    String expectedOutput =
-	            "Skipping malformed line: 2024-05-10 09:04:18 INFO: Shutdown completed successfully"
-	                    + System.lineSeparator()
-	                    + "Analysis complete. Summary written to summary.txt"
-	                    + System.lineSeparator();
-
-	    assertEquals(expectedOutput, outputStream.toString());
-	}
-	
-	@Test
-	void shouldPrintMalformedLineMessageForLevel() {
-		String filename = "server.log";
-	    fileCreator(filename, "[2024-05-10 09:04:18] INFOS: Shutdown completed successfully");
-
-	    LogAnalyzer.main(new String[] {filename});
-
-	    String expectedOutput =
-	            "Skipping malformed line: [2024-05-10 09:04:18] INFOS: Shutdown completed successfully"
-	                    + System.lineSeparator()
-	                    + "Analysis complete. Summary written to summary.txt"
-	                    + System.lineSeparator();
-
-	    assertEquals(expectedOutput, outputStream.toString());
-	}
-
-	@Test
-	void shouldPrintMissingMessage() {
-		String filename = "server.log";
-	    fileCreator(filename, "[2024-05-10 09:04:18] INFO:");
-
-	    LogAnalyzer.main(new String[] {filename});
-
-
-	    String expectedOutput =
-	            "Skipping malformed line: [2024-05-10 09:04:18] INFO:"
-	                    + System.lineSeparator() 
-	                    + "Analysis complete. Summary written to summary.txt" 
-	                    + System.lineSeparator();
-
-	    assertEquals(expectedOutput, outputStream.toString());
-	}
 }
